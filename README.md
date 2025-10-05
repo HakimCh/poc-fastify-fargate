@@ -197,6 +197,11 @@ AWS_ACCESS_KEY_ID=test
 AWS_SECRET_ACCESS_KEY=test
 EVENTBRIDGE_ENDPOINT=http://localstack:4566
 EVENT_BUS_NAME=local-event-bus
+
+# Datadog (optionnel)
+DD_API_KEY=your-datadog-api-key
+DD_AGENT_HOST=localhost
+DD_AGENT_PORT=8125
 ```
 
 ### Production AWS
@@ -207,6 +212,9 @@ Les variables sont configurées dans la task definition ECS:
 - `HOST` - Host (0.0.0.0)
 - `AWS_REGION` - Région AWS
 - `EVENT_BUS_NAME` - Nom du bus EventBridge
+- `DD_API_KEY` - Clé API Datadog (optionnel)
+- `DD_AGENT_HOST` - Host de l'agent Datadog
+- `DD_AGENT_PORT` - Port de l'agent Datadog
 
 ## Stack Technique
 
@@ -214,6 +222,7 @@ Les variables sont configurées dans la task definition ECS:
 - **Framework:** Fastify 5
 - **Language:** TypeScript 5
 - **AWS SDK:** EventBridge Client v3
+- **Monitoring:** Datadog (hot-shots)
 - **Infrastructure:** Terraform
 - **Container:** Docker
 - **Dev Local:** LocalStack
@@ -223,7 +232,10 @@ Les variables sont configurées dans la task definition ECS:
 ```
 .
 ├── src/
-│   └── index.ts              # API Fastify avec endpoints EventBridge
+│   ├── index.ts              # API Fastify avec endpoints EventBridge
+│   ├── datadog.ts            # Client Datadog pour logs et métriques
+│   └── types/
+│       └── fastify.d.ts      # Extensions de types Fastify
 ├── terraform/
 │   ├── main.tf               # Infrastructure principale
 │   ├── variables.tf          # Variables Terraform
@@ -244,7 +256,42 @@ Les variables sont configurées dans la task definition ECS:
 - Les logs sont centralisés dans CloudWatch
 - Les images Docker sont scannées dans ECR
 
-## Monitoring
+## Monitoring avec Datadog
+
+### Configuration
+
+Pour activer Datadog, définissez `DD_API_KEY` dans vos variables d'environnement.
+
+### Métriques envoyées
+
+- `eventbridge.api.request.count` - Nombre de requêtes par méthode, route et status
+- `eventbridge.api.request.duration` - Durée des requêtes en ms
+- `eventbridge.api.request.size` - Taille des requêtes
+- `eventbridge.api.request.success` - Requêtes réussies
+- `eventbridge.api.request.error.4xx` - Erreurs client
+- `eventbridge.api.request.error.5xx` - Erreurs serveur
+- `eventbridge.api.eventbridge.send.count` - Événements envoyés
+- `eventbridge.api.eventbridge.receive.count` - Événements reçus
+- `eventbridge.api.eventbridge.send.duration` - Temps d'envoi vers EventBridge
+- `eventbridge.api.eventbridge.send.error` - Erreurs d'envoi
+- `eventbridge.api.server.status` - Status du serveur (1=up, 0=down)
+
+### Logs envoyés
+
+Les logs sont automatiquement envoyés à Datadog avec les niveaux:
+- `info` - Informations générales
+- `warn` - Avertissements
+- `error` - Erreurs
+
+Chaque log inclut le contexte métier et les tags appropriés.
+
+### Agent Datadog
+
+L'application utilise le protocole StatsD pour envoyer les métriques à l'agent Datadog.
+
+En production, assurez-vous que l'agent Datadog est déployé en sidecar dans votre tâche ECS ou en tant que daemon sur vos hôtes.
+
+### Monitoring AWS
 
 - **CloudWatch Logs:** `/ecs/eventbridge-api`
 - **Métriques ECS:** CPU, mémoire, nombre de tâches
